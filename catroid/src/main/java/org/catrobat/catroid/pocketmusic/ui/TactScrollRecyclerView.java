@@ -52,11 +52,14 @@ public class TactScrollRecyclerView extends RecyclerView {
 	private static final int MINIMUM_TACT_COUNT = 2;
 	private static final int TACT_VIEW_TYPE = 0;
 	private static final int PLUS_VIEW_TYPE = 1;
+	private static final int EMPTY_VIEW_TYPE = 2;
+	private static final int EMPTY_VIEW_COUNT_ON_END = 2;
 	private TrackGrid trackGrid;
 	private ViewGroup.LayoutParams tactViewParams = new ViewGroup.LayoutParams(0, 0);
 	private boolean isPlaying;
 	private int tactCount;
 	private TactSnapper tactSnapper;
+	private UpdateAnimatorCallback updateAnimatorCallback;
 
 	public TactScrollRecyclerView(Context context) {
 		this(context, null);
@@ -78,6 +81,10 @@ public class TactScrollRecyclerView extends RecyclerView {
 
 		tactSnapper = new TactSnapper();
 		addOnScrollListener(tactSnapper);
+	}
+
+	public void setUpdateAnimatorCallback(UpdateAnimatorCallback callback) {
+		updateAnimatorCallback = callback;
 	}
 
 	@Override
@@ -108,6 +115,10 @@ public class TactScrollRecyclerView extends RecyclerView {
 		isPlaying = playing;
 	}
 
+	public int getTactCount() {
+		return tactCount;
+	}
+
 	@Override
 	protected void onMeasure(int widthSpec, int heightSpec) {
 		if (MeasureSpec.getMode(widthSpec) != MeasureSpec.UNSPECIFIED) {
@@ -117,6 +128,7 @@ public class TactScrollRecyclerView extends RecyclerView {
 				getChildAt(i).getLayoutParams().width = tactViewParams.width;
 				getChildAt(i).getLayoutParams().height = tactViewParams.height;
 			}
+			updateAnimatorCallback.updateCallback(tactCount, getMeasuredWidth());
 		}
 		super.onMeasure(widthSpec, heightSpec);
 	}
@@ -135,16 +147,24 @@ public class TactScrollRecyclerView extends RecyclerView {
 		@Override
 		public TactViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
 			View tactContent;
-			if (viewType == PLUS_BUTTON_ON_END) {
-				tactContent = LayoutInflater.from(parent.getContext()).inflate(R.layout.pocketmusic_add_tact_button,
-						parent, false);
-				tactContent.setLayoutParams(tactViewParams);
-				tactContent.setOnClickListener(addTactClickListener);
-			} else {
-				tactContent = new TrackView(getContext(), trackGrid);
-				tactContent.setLayoutParams(tactViewParams);
+			switch (viewType) {
+				case PLUS_VIEW_TYPE:
+					tactContent = LayoutInflater.from(parent.getContext()).inflate(R.layout.pocketmusic_add_tact_button,
+							parent, false);
+					tactContent.setLayoutParams(tactViewParams);
+					tactContent.setOnClickListener(addTactClickListener);
+					break;
+				case EMPTY_VIEW_TYPE:
+					tactContent = LayoutInflater.from(parent.getContext()).inflate(R.layout.pocketmusic_empty_view,
+							parent, false);
+					tactContent.setLayoutParams(tactViewParams);
+					break;
+				default:
+					tactContent = new TrackView(getContext(), trackGrid);
+					tactContent.setLayoutParams(tactViewParams);
+					updateAnimatorCallback.updateCallback(tactCount, getMeasuredWidth());
+					break;
 			}
-
 			return new TactViewHolder(tactContent);
 		}
 
@@ -158,6 +178,12 @@ public class TactScrollRecyclerView extends RecyclerView {
 
 		@Override
 		public int getItemViewType(int position) {
+			if (isPlaying) {
+				if (position >= getItemCount() - EMPTY_VIEW_COUNT_ON_END) {
+					return EMPTY_VIEW_TYPE;
+				}
+				return TACT_VIEW_TYPE;
+			}
 			if (position == getItemCount() - 1) {
 				return PLUS_VIEW_TYPE;
 			} else {
@@ -167,6 +193,9 @@ public class TactScrollRecyclerView extends RecyclerView {
 
 		@Override
 		public int getItemCount() {
+			if (isPlaying) {
+				return Math.max(tactCount, MINIMUM_TACT_COUNT) + EMPTY_VIEW_COUNT_ON_END;
+			}
 			return Math.max(tactCount, MINIMUM_TACT_COUNT) + PLUS_BUTTON_ON_END;
 		}
 	}
@@ -206,5 +235,9 @@ public class TactScrollRecyclerView extends RecyclerView {
 
 			return tactViewHolder;
 		}
+	}
+
+	public interface UpdateAnimatorCallback {
+		void updateCallback(int tactCount, int measuredWidth);
 	}
 }
